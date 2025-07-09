@@ -1,1 +1,66 @@
-# <cole aqui o conteúdo completo do docker-stack.yml que montamos>
+version: "3.7"
+
+services:
+  odoo_db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: odoo
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo123
+    volumes:
+      - odoo_db_data:/var/lib/postgresql/data
+    networks:
+      - jatonet
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+
+  odoo_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: custom-odoo:16
+    command: >-
+      bash -c "
+        echo 'Aguardando banco…';
+        until pg_isready -h odoo_db -p 5432 -U odoo; do sleep 2; done;
+        echo 'Banco pronto, iniciando Odoo em dev assets…';
+        odoo --config=/etc/odoo/odoo.conf --dev=assets,js,xml
+      "
+    environment:
+      - ADDONS_PATH=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons
+    volumes:
+      - type: bind
+        source: /var/lib/docker/volumes/portainer_data/_data/compose/16/config/odoo.conf
+        target: /etc/odoo/odoo.conf
+        read_only: true
+      - odoo_app_data:/var/lib/odoo
+      - type: bind
+        source: /srv/odoo/custom-addons
+        target: /mnt/extra-addons
+    networks:
+      - jatonet
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.odoo_app.rule=Host(\`maranatha.jatoinvestindo.com\`,\`www.maranathaartigoscristaos.com.br\`)
+        - traefik.http.routers.odoo_app.entrypoints=websecure
+        - traefik.http.routers.odoo_app.tls=true
+        - traefik.http.routers.odoo_app.tls.certresolver=letsencryptresolver
+        - traefik.http.services.odoo_app.loadbalancer.server.port=8069
+        - traefik.http.middlewares.odoo_headers.headers.customrequestheaders.X-Forwarded-Proto=https
+        - traefik.http.routers.odoo_app.middlewares=odoo_headers
+
+volumes:
+  odoo_db_data:
+  odoo_app_data:
+
+networks:
+  jatonet:
+    external: true
+    attachable: true
+    name: jatonet

@@ -31,14 +31,19 @@ services:
     environment:
       - ADDONS_PATH=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons
     volumes:
+      # monta seu filestore antigo
+      - type: bind
+        source: /srv/odoo/data
+        target: /var/lib/odoo
+      # monta os módulos OCA
+      - type: bind
+        source: /srv/odoo/custom-addons
+        target: /mnt/extra-addons
+      # monta o config do Odoo
       - type: bind
         source: /var/lib/docker/volumes/portainer_data/_data/compose/16/config/odoo.conf
         target: /etc/odoo/odoo.conf
         read_only: true
-      - odoo_app_data:/var/lib/odoo
-      - type: bind
-        source: /srv/odoo/custom-addons
-        target: /mnt/extra-addons
     networks:
       - jatonet
     deploy:
@@ -57,7 +62,6 @@ services:
 
 volumes:
   odoo_db_data:
-  odoo_app_data:
 
 networks:
   jatonet:
